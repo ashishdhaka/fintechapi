@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Existing head content -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Application System</title>
+    <style>
+        /* Existing styles */
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        input, button, select { padding: 5px; }
+        .hidden { display: none; }
+        #logoutButton {
+            align-self: flex-end;
+            padding: 5px 10px;
+            margin-bottom: 20px;
+        }
+        #loan-payments {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Loan Application System</h1>
+
+    <div id="auth-section">
+        <h2>Register</h2>
+        <form id="registerForm">
+            <input type="text" id="regUsername" placeholder="Username" required>
+            <input type="password" id="regPassword" placeholder="Password" required>
+            <!-- New fields for registration -->
+            <input type="date" id="regDob" placeholder="Date of Birth" required>
+            <input type="text" id="regSsn" placeholder="Social Security Number" required>
+            <input type="text" id="regAddress" placeholder="Address" required>
+            <button type="submit">Register</button>
+        </form>
+
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Username" required>
+            <input type="password" id="loginPassword" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <div id="app-section" class="hidden">
+        <button id="logoutButton">Logout</button>
+
+        <h2>Apply for a Loan</h2>
+        <form id="loanForm">
+            <input type="text" id="name" placeholder="Full Name" required>
+            <input type="number" id="amount" placeholder="Loan Amount" required>
+            <input type="text" id="purpose" placeholder="Loan Purpose" required>
+            <input type="number" id="income" placeholder="Annual Income" required>
+            <!-- Personal details fields -->
+            <div id="personal-details">
+                <!-- These fields will be hidden if the user has already provided them -->
+                <input type="date" id="dob" placeholder="Date of Birth" required>
+                <input type="text" id="ssn" placeholder="Social Security Number" required>
+                <input type="text" id="address" placeholder="Address" required>
+            </div>
+            <button type="submit">Submit Application</button>
+        </form>
+
+        <h2>Your Loan Applications</h2>
+        <div id="applications"></div>
+
+        <h2>Your Approved Loans</h2>
+        <div id="approved-loans"></div>
+
+        <h2>Make a Payment</h2>
+        <form id="paymentForm">
+            <select id="loanSelect" required>
+                <option value="">Select Loan</option>
+            </select>
+            <input type="number" id="paymentAmount" placeholder="Payment Amount" required>
+            <button type="submit">Make Payment</button>
+        </form>
+
+        <!-- Optional: Payment history -->
+        <div id="loan-payments"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        let token = localStorage.getItem('token');
+        let userInfo = {};
+
+        function showAppSection() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            fetchUserInfo();
+            fetchApplications();
+            fetchLoans();
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            token = null;
+            userInfo = {};
+            document.getElementById('app-section').classList.add('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
+        }
+
+        if (token) {
+            showAppSection();
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            const dob = document.getElementById('regDob').value;
+            const ssn = document.getElementById('regSsn').value;
+            const address = document.getElementById('regAddress').value;
+
+            const response = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, dob, ssn, address })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                alert(result.message);
+            } else {
+                alert(result.message);
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const response = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                token = result.token;
+                localStorage.setItem('token', token);
+                userInfo = {
+                    ssn: result.ssn,
+                    dob: result.dob,
+                    address: result.address
+                };
+                showAppSection();
+            } else {
+                alert(result.message);
+            }
+        });
+
+        async function fetchUserInfo() {
+            const response = await fetch(`${API_URL}/user_info`, {
+                headers: { 'Authorization': token }
+            });
+            if (response.ok) {
+                userInfo = await response.json();
+                // If ssn is already set, hide the personal details fields
+                if (userInfo.ssn) {
+                    document.getElementById('personal-details').innerHTML = '';
+                }
+            } else {
+                alert('Error fetching user info');
+            }
+        }
+
+        document.getElementById('loanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const amount = document.getElementById('amount').value;
+            const purpose = document.getElementById('purpose').value;
+            const income = document.getElementById('income').value;
+
+            let dob, ssn, address;
+
+            if (!userInfo.ssn) {
+                // Collect personal details since they are not set
+                dob = document.getElementById('dob').value;
+                ssn = document.getElementById('ssn').value;
+                address = document.getElementById('address').value;
+            } else {
+                // Use stored personal details
+                dob = userInfo.dob;
+                ssn = userInfo.ssn;
+                address = userInfo.address;
+            }
+
+            const response = await fetch(`${API_URL}/apply`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': token
+                },
+                body: JSON.stringify({ 
+                    name, 
+                    amount, 
+                    purpose, 
+                    income, 
+                    dob, 
+                    ssn, 
+                    address
+                })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                alert(`Application ${result.message}. Loan ID: ${result.loan_id}`);
+                fetchApplications();
+                fetchLoans();
+            } else {
+                alert(result.message);
+            }
+        });
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            logout();
+        });
+
+        async function fetchApplications() {
+            const response = await fetch(`${API_URL}/applications`, {
+                headers: { 'Authorization': token }
+            });
+            if (response.ok) {
+                const applications = await response.json();
+                const applicationsDiv = document.getElementById('applications');
+                applicationsDiv.innerHTML = applications.map(app => `
+                    <p>
+                        <strong>ID:</strong> ${app.id}<br>
+                        <strong>Name:</strong> ${app.name}<br>
+                        <strong>Amount:</strong> $${app.amount}<br>
+                        <strong>Purpose:</strong> ${app.purpose}<br>
+                        <strong>Credit Score:</strong> ${app.credit_score}<br>
+                        <strong>Income:</strong> $${app.income}<br>
+                        <strong>Status:</strong> ${app.status}<br>
+                        <strong>Balance:</strong> $${app.balance}
+                    </p>
+                `).join('');
+            } else if (response.status === 401) {
+                // Token is invalid or expired
+                alert('Session expired. Please log in again.');
+                logout();
+            } else {
+                const result = await response.json();
+                alert(`Error fetching applications: ${result.message}`);
+            }
+        }
+
+        async function fetchLoans() {
+            const response = await fetch(`${API_URL}/loans`, {
+                headers: { 'Authorization': token }
+            });
+            if (response.ok) {
+                const loans = await response.json();
+                const loansDiv = document.getElementById('approved-loans');
+                const loanSelect = document.getElementById('loanSelect');
+                loansDiv.innerHTML = loans.map(loan => `
+                    <p>
+                        <strong>Loan ID:</strong> ${loan.id}<br>
+                        <strong>Original Amount:</strong> $${loan.amount}<br>
+                        <strong>Outstanding Balance:</strong> $${loan.balance}
+                    </p>
+                `).join('');
+
+                // Populate loan dropdown
+                loanSelect.innerHTML = '<option value="">Select Loan</option>' + loans.map(loan => `
+                    <option value="${loan.id}">Loan ID: ${loan.id} - Balance: $${loan.balance}</option>
+                `).join('');
+            } else {
+                alert('Error fetching loans');
+            }
+        }
+
+        document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const loan_id = document.getElementById('loanSelect').value;
+            const amount = document.getElementById('paymentAmount').value;
+
+            if (!loan_id) {
+                alert('Please select a loan');
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/pay`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': token
+                },
+                body: JSON.stringify({ loan_id, amount })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                alert(`Payment successful. New balance: $${result.new_balance}`);
+                fetchLoans();
+                fetchApplications();
+            } else {
+                alert(result.message);
+            }
+        });
+
+        // Since approvals are automated, remove or disable the approveLoan function
+        function approveLoan(loanId) {
+            alert('Manual approval is not available. Loans are automatically approved or rejected.');
+        }
+    </script>
+</body>
+</html>
