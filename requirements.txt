@@ -1,4 +1,6 @@
-Flask
-flask_cors
-werkzeug
-PyJWT
+Flask==2.2.5
+flask_cors==3.0.10
+werkzeug==2.2.5
+PyJWT==2.8.0
+gunicorn==20.1.0
+serverless-wsgi==2.0.2
